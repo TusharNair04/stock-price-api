@@ -33,7 +33,7 @@ flowchart TD
 1. Clone the repository:
    ```bash
    git clone <repo-url>
-   cd stock-price-scrapper
+   cd stock-price-scraper
    ```
 
 2. Create and activate a virtual environment:
@@ -136,7 +136,7 @@ curl "http://localhost:8000/batch?tickers=AAPL,MSFT,GOOGL"
 ## Project Structure
 
 ```
-stock-price-scrapper/
+stock-price-scraper/
 ├── src/
 │   ├── core/
 │   │   ├── config.py      # Environment configuration
