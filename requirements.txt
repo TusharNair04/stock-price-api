@@ -1,0 +1,14 @@
+httpx
+beautifulsoup4
+lxml
+pydantic
+pydantic-settings
+loguru
+tenacity
+python-dotenv
+yfinance
+pandas
+google-genai
+pytest
+fastapi
+uvicorn[standard]
