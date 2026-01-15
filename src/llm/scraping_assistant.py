@@ -67,7 +67,7 @@ Return ONLY the JSON object, no other text.'''
 
         except Exception as e:
             logger.error(f"Failed to get selector suggestions: {e}")
-            raise GeminiError(f"Selector suggestion failed: {e}")
+            raise GeminiError(f"Selector suggestion failed: {e}") from e
 
     def repair_selector(
         self,
@@ -114,7 +114,7 @@ Return ONLY the selector string, no explanation or quotes.'''
 
         except Exception as e:
             logger.error(f"Failed to repair selector: {e}")
-            raise GeminiError(f"Selector repair failed: {e}")
+            raise GeminiError(f"Selector repair failed: {e}") from e
 
     def validate_quote(
         self,

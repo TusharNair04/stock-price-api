@@ -186,8 +186,8 @@ class YahooHTMLScraper:
         # Clean and parse price
         try:
             price = float(price_str.replace(",", "").replace("$", ""))
-        except ValueError:
-            raise HTMLScraperError(f"Invalid price format: {price_str}")
+        except ValueError as e:
+            raise HTMLScraperError(f"Invalid price format: {price_str}") from e
 
         # Find change (optional)
         change = None
