@@ -46,12 +46,12 @@ class GeminiClient:
                 from google import genai
                 self._client = genai.Client(api_key=api_key)
                 logger.debug("Gemini client initialized")
-            except ImportError:
+            except ImportError as e:
                 raise GeminiError(
                     "google-genai package not installed. Run: pip install google-genai"
-                )
+                ) from e
             except Exception as e:
-                raise GeminiError(f"Failed to initialize Gemini client: {e}")
+                raise GeminiError(f"Failed to initialize Gemini client: {e}") from e
 
         return self._client
 
