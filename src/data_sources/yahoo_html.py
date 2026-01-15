@@ -6,17 +6,15 @@ Uses httpx for HTTP requests and BeautifulSoup for parsing.
 
 import time
 from datetime import datetime
-from typing import Optional
-import json
 
 import httpx
 from bs4 import BeautifulSoup
 from loguru import logger
 from tenacity import (
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
 )
 
 from src.core.config import settings
@@ -33,20 +31,20 @@ class SelectorConfig:
     CSS selectors for Yahoo Finance quote page.
     These may need to be updated if Yahoo changes their markup.
     """
-    
+
     # Price selectors (in order of preference)
     PRICE_SELECTORS = [
         "fin-streamer[data-field='regularMarketPrice']",
         "[data-testid='qsp-price']",
         ".livePrice span",
     ]
-    
+
     # Currency/change selectors
     CHANGE_SELECTORS = [
         "fin-streamer[data-field='regularMarketChange']",
         "[data-testid='qsp-price-change']",
     ]
-    
+
     CHANGE_PERCENT_SELECTORS = [
         "fin-streamer[data-field='regularMarketChangePercent']",
         "[data-testid='qsp-price-change-percent']",
@@ -58,12 +56,12 @@ class YahooHTMLScraper:
     Yahoo Finance HTML scraper for quote data.
     Uses BeautifulSoup for parsing and supports selector repair via Gemini.
     """
-    
+
     BASE_URL = "https://finance.yahoo.com/quote"
-    
+
     def __init__(self):
         self.rate_limit = settings.rate_limit_requests_per_second
-        self._last_request_time: Optional[float] = None
+        self._last_request_time: float | None = None
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
@@ -72,7 +70,7 @@ class YahooHTMLScraper:
             "Connection": "keep-alive",
             "Upgrade-Insecure-Requests": "1",
         }
-        
+
         # Track current selectors (can be updated by Gemini)
         self.price_selectors = list(SelectorConfig.PRICE_SELECTORS)
         self.change_selectors = list(SelectorConfig.CHANGE_SELECTORS)
@@ -98,19 +96,19 @@ class YahooHTMLScraper:
     def fetch_html(self, url: str, timeout: float = 15.0) -> str:
         """
         Fetch HTML content from a URL.
-        
+
         Args:
             url: URL to fetch
             timeout: Request timeout in seconds
-        
+
         Returns:
             HTML content as string
-        
+
         Raises:
             HTMLScraperError: If request fails
         """
         self._rate_limit_wait()
-        
+
         try:
             with httpx.Client(timeout=timeout, headers=self.headers, follow_redirects=True) as client:
                 response = client.get(url)
@@ -128,15 +126,15 @@ class YahooHTMLScraper:
         soup: BeautifulSoup,
         selectors: list,
         field_name: str
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Try multiple selectors to find an element's text.
-        
+
         Args:
             soup: BeautifulSoup object
             selectors: List of CSS selectors to try
             field_name: Field name for logging
-        
+
         Returns:
             Element text if found, None otherwise
         """
@@ -154,43 +152,43 @@ class YahooHTMLScraper:
                         return text
             except Exception as e:
                 logger.debug(f"Selector '{selector}' failed for {field_name}: {e}")
-        
+
         return None
 
     def parse_quote_from_html(self, html: str, ticker: str) -> Quote:
         """
         Parse quote data from Yahoo Finance HTML.
-        
+
         Args:
             html: HTML content
             ticker: Stock ticker symbol
-        
+
         Returns:
             Quote object
-        
+
         Raises:
             HTMLScraperError: If parsing fails
         """
         soup = BeautifulSoup(html, "lxml")
-        
+
         # Find price
         price_str = self._find_element_with_selectors(
             soup, self.price_selectors, "price"
         )
-        
+
         if not price_str:
             # Try to extract from JSON-LD or script data
             price_str = self._extract_price_from_scripts(soup)
-        
+
         if not price_str:
             raise HTMLScraperError(f"Could not find price for {ticker}")
-        
+
         # Clean and parse price
         try:
             price = float(price_str.replace(",", "").replace("$", ""))
         except ValueError:
             raise HTMLScraperError(f"Invalid price format: {price_str}")
-        
+
         # Find change (optional)
         change = None
         change_str = self._find_element_with_selectors(
@@ -201,7 +199,7 @@ class YahooHTMLScraper:
                 change = float(change_str.replace(",", "").replace("+", ""))
             except ValueError:
                 pass
-        
+
         # Find change percent (optional)
         change_percent = None
         change_pct_str = self._find_element_with_selectors(
@@ -214,10 +212,10 @@ class YahooHTMLScraper:
                 change_percent = float(cleaned)
             except ValueError:
                 pass
-        
+
         # Determine currency (default to USD)
         currency = self._extract_currency(soup) or "USD"
-        
+
         quote = Quote(
             ticker=ticker.upper(),
             price=price,
@@ -227,17 +225,17 @@ class YahooHTMLScraper:
             change=change,
             change_percent=change_percent,
         )
-        
+
         logger.info(f"Parsed HTML quote for {ticker}: ${quote.price:.2f}")
         return quote
 
-    def _extract_price_from_scripts(self, soup: BeautifulSoup) -> Optional[str]:
+    def _extract_price_from_scripts(self, soup: BeautifulSoup) -> str | None:
         """
         Try to extract price from embedded JSON/script data.
-        
+
         Args:
             soup: BeautifulSoup object
-        
+
         Returns:
             Price string if found, None otherwise
         """
@@ -246,7 +244,7 @@ class YahooHTMLScraper:
             text = script.string
             if not text:
                 continue
-            
+
             # Look for regularMarketPrice in JSON
             if "regularMarketPrice" in text:
                 try:
@@ -261,46 +259,46 @@ class YahooHTMLScraper:
                             return match.group(1)
                 except Exception:
                     pass
-        
+
         return None
 
-    def _extract_currency(self, soup: BeautifulSoup) -> Optional[str]:
+    def _extract_currency(self, soup: BeautifulSoup) -> str | None:
         """
         Try to extract currency from the page.
-        
+
         Args:
             soup: BeautifulSoup object
-        
+
         Returns:
             Currency code if found, None otherwise
         """
         # Look for currency indicator in the page
         currency_indicators = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF"]
-        
+
         # Check meta tags
         for meta in soup.find_all("meta"):
             content = meta.get("content", "")
             for curr in currency_indicators:
                 if curr in content:
                     return curr
-        
+
         return None
 
     def get_quote(self, ticker: str) -> Quote:
         """
         Get quote for a ticker via HTML scraping.
-        
+
         Args:
             ticker: Stock ticker symbol
-        
+
         Returns:
             Quote object
-        
+
         Raises:
             HTMLScraperError: If scraping fails
         """
         url = f"{self.BASE_URL}/{ticker.upper()}"
-        
+
         try:
             html = self.fetch_html(url)
             return self.parse_quote_from_html(html, ticker)
@@ -312,36 +310,36 @@ class YahooHTMLScraper:
         """
         Get a snippet of HTML for the ticker page.
         Useful for Gemini selector analysis.
-        
+
         Args:
             ticker: Stock ticker symbol
             max_length: Maximum snippet length
-        
+
         Returns:
             HTML snippet
         """
         url = f"{self.BASE_URL}/{ticker.upper()}"
         html = self.fetch_html(url)
-        
+
         # Try to extract relevant section
         soup = BeautifulSoup(html, "lxml")
-        
+
         # Find the quote section
         quote_section = soup.find("section", {"data-testid": "quote-price"})
         if quote_section:
             return str(quote_section)[:max_length]
-        
+
         # Fall back to body truncated
         body = soup.find("body")
         if body:
             return str(body)[:max_length]
-        
+
         return html[:max_length]
 
-    def update_selectors(self, new_price_selector: Optional[str] = None):
+    def update_selectors(self, new_price_selector: str | None = None):
         """
         Update selectors (e.g., from Gemini repair).
-        
+
         Args:
             new_price_selector: New CSS selector for price
         """

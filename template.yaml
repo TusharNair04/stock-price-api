@@ -1,0 +1,117 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Stock Price API - FastAPI on AWS Lambda
+
+Parameters:
+  GeminiApiKey:
+    Type: String
+    Default: ''
+    Description: Gemini API key for LLM features (optional)
+    NoEcho: true
+
+  ApiKey:
+    Type: String
+    Default: ''
+    Description: API key for authentication (optional, leave empty for public access)
+    NoEcho: true
+
+  CorsOrigins:
+    Type: String
+    Default: '*'
+    Description: Comma-separated list of allowed CORS origins
+
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues:
+      - development
+      - staging
+      - production
+    Description: Deployment environment
+
+Globals:
+  Function:
+    Timeout: 60
+    MemorySize: 512
+
+Resources:
+  StockPriceApi:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'stock-price-api-${Environment}'
+      PackageType: Image
+      Architectures:
+        - arm64
+      Environment:
+        Variables:
+          GEMINI_API_KEY: !Ref GeminiApiKey
+          API_KEY: !Ref ApiKey
+          CORS_ORIGINS: !Ref CorsOrigins
+          USE_YFINANCE: 'True'
+          USE_HTML_FALLBACK: 'True'
+          USE_GEMINI_ASSISTANT: 'True'
+          LOG_FORMAT: 'json'
+          ENVIRONMENT: !Ref Environment
+      Events:
+        ApiRoot:
+          Type: HttpApi
+          Properties:
+            Path: /
+            Method: ANY
+        ApiProxy:
+          Type: HttpApi
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: ./
+      DockerTag: latest
+
+  # CloudWatch Alarms
+  ApiErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'stock-price-api-${Environment}-errors'
+      AlarmDescription: Alarm when API error rate exceeds threshold
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref StockPriceApi
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  ApiDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'stock-price-api-${Environment}-duration'
+      AlarmDescription: Alarm when API duration exceeds threshold
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref StockPriceApi
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 30000
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+
+  FunctionArn:
+    Description: Lambda Function ARN
+    Value: !GetAtt StockPriceApi.Arn
+
+  FunctionName:
+    Description: Lambda Function Name
+    Value: !Ref StockPriceApi
