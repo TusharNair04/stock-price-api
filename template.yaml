@@ -41,7 +41,7 @@ Resources:
       FunctionName: !Sub 'stock-price-api-${Environment}'
       PackageType: Image
       Architectures:
-        - arm64
+        - x86_64
       Environment:
         Variables:
           GEMINI_API_KEY: !Ref GeminiApiKey
