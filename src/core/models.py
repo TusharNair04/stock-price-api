@@ -4,7 +4,8 @@ Defines Quote, HistoricalBar, and ScrapeMetadata models.
 """
 
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -21,12 +22,12 @@ class Quote(BaseModel):
         ..., description="Data source used"
     )
 
-    change: Optional[float] = Field(default=None, description="Price change")
-    change_percent: Optional[float] = Field(
+    change: float | None = Field(default=None, description="Price change")
+    change_percent: float | None = Field(
         default=None, description="Price change percentage"
     )
-    volume: Optional[int] = Field(default=None, description="Trading volume")
-    market_cap: Optional[float] = Field(default=None, description="Market capitalization")
+    volume: int | None = Field(default=None, description="Trading volume")
+    market_cap: float | None = Field(default=None, description="Market capitalization")
 
 
 class HistoricalBar(BaseModel):
@@ -50,7 +51,7 @@ class ScrapeMetadata(BaseModel):
     source: str = Field(..., description="Data source")
     latency_ms: float = Field(..., ge=0, description="Request latency in milliseconds")
     success: bool = Field(..., description="Whether the request succeeded")
-    error_message: Optional[str] = Field(
+    error_message: str | None = Field(
         default=None, description="Error message if failed"
     )
     timestamp: datetime = Field(
