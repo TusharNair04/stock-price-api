@@ -98,6 +98,10 @@ jobs:
 
       - name: Deploy with SAM
         run: |
+          PARAMS="Environment=production ApiKey=${{ secrets.API_KEY }}"
+          if [ -n "${{ secrets.GEMINI_API_KEY }}" ]; then
+            PARAMS="$PARAMS GeminiApiKey=${{ secrets.GEMINI_API_KEY }}"
+          fi
           sam deploy \
             --stack-name stock-price-api \
             --resolve-s3 \
@@ -105,7 +109,4 @@ jobs:
             --capabilities CAPABILITY_IAM \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
-            --parameter-overrides \
-              Environment=production \
-              ApiKey=${{ secrets.API_KEY }} \
-              GeminiApiKey=${{ secrets.GEMINI_API_KEY }}
+            --parameter-overrides $PARAMS
